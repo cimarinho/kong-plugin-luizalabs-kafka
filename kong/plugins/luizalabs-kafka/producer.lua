@@ -41,6 +41,8 @@ local function create_producer(conf)
 end
 
 local function send(conf, message)
+    --local inspect = require("inspect")
+    --print('\n\n ', inspect(message))
     local connect_kafka, err = create_producer(conf)
     if err then
         ngx.log(ngx.CRIT, err)
@@ -52,8 +54,8 @@ local function send(conf, message)
     end
 end
 
-function _M.execute(config)
-    local _, err = send(config, kong.request.get_body())
+function _M.execute(config, message)
+    local _, err = send(config, message)
     if err then
         ngx.log(ngx.CRIT, err)
     end
