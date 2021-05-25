@@ -1,6 +1,5 @@
 local cjson = require "cjson"
 local cjson_encode = cjson.encode
-local kong = kong
 local kafka_producer = require "resty.kafka.producer"
 local re_match = ngx.re.match
 local ipairs = ipairs
@@ -15,15 +14,19 @@ local function bootstrap_server(string)
     return { host = m[1], port = m[2] }
 end
 
-local function create_producer(conf)
+local function broker_list(bootstrap_servers)
     local broker_list = {}
-    for idx, value in ipairs(conf.bootstrap_servers) do
+    for idx, value in ipairs(bootstrap_servers) do
         local server = bootstrap_server(value)
         if not server then
             return nil, "invalid bootstrap server value: " .. value
         end
         broker_list[idx] = server
     end
+    return broker_list
+end
+
+local function create_producer(conf)
     local producer_config = {
         socket_timeout = conf.timeout,
         keepalive_timeout = conf.keepalive,
@@ -37,27 +40,16 @@ local function create_producer(conf)
         flush_time = conf.producer_async_flush_timeout,
         max_buffering = conf.producer_async_buffering_limits_messages_in_memory,
     }
-    return kafka_producer:new(broker_list, producer_config)
-end
-
-local function send(conf, message)
-    --local inspect = require("inspect")
-    --print('\n\n ', inspect(message))
-    local connect_kafka, err = create_producer(conf)
-    if err then
-        ngx.log(ngx.CRIT, err)
-    end
-    local _ , err = connect_kafka:send(conf.topic, nil, cjson_encode(message))
-    if err then
-        ngx.log(ngx.ERR, "Failed to send a message on topic ", conf.topic, ": ", err)
-        return
-    end
+    local brokers = broker_list(conf.bootstrap_servers)
+    return kafka_producer:new(brokers, producer_config)
 end
 
 function _M.execute(config, message)
-    local _, err = send(config, message)
-    if err then
-        ngx.log(ngx.CRIT, err)
+    local conn = create_producer(config)
+    local ok , _ = conn:send(config.topic, nil, cjson_encode(message))
+    if not ok then
+        ngx.log(ngx.ERR, "Failed to send a message on topic ", config.topic, ": ", err)
+        return
     end
 end
 

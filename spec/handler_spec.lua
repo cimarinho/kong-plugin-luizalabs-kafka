@@ -1,13 +1,20 @@
---local request = {
---    get_body = spy.new(function()
---        return  {
---            age = 43,
---            birthday = "1976-09-30",
---            name = "Marcelo33"
---        }
---    end)
---}
---_G.kong["request"] = request
+local kong = {
+    request = {
+        get_body = spy.new(function()
+            return {
+                age = 43,
+                birthday = "1976-09-30",
+                name = "Marcelo33",
+            }
+        end),
+    }
+}
+local log = spy.new(function(status, error)
+    return status, error
+end)
+
+_G.ngx.log = log
+_G.kong = kong
 
 local producer = require 'kong.plugins.luizalabs-kafka.producer'
 local handler = require('kong.plugins.luizalabs-kafka.handler')
@@ -15,18 +22,6 @@ local handler = require('kong.plugins.luizalabs-kafka.handler')
 describe("handler test call phase", function()
     local config = {}
     before_each(function()
-        --kong = {
-        --    request = {
-        --        get_body = spy.new(function()
-        --            return {
-        --                age = 43,
-        --                birthday = "1976-09-30",
-        --                name = "Marcelo33"
-        --            }
-        --        end)
-        --    }
-        --}
-
         config = {
             {
                 bootstrap_servers = { "localhost:9092" },
@@ -63,7 +58,7 @@ describe("handler test call phase", function()
                 return true
             end)
             handler:access(config)
-            assert.spy(producer.execute(config, kong)).was.called()
+            assert.spy(producer.execute).was.called()
         end)
 
         it("calling a phase of error", function()
